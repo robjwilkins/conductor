@@ -27,6 +27,7 @@ import com.netflix.conductor.common.utils.RetryUtil;
 import com.netflix.conductor.core.config.Configuration;
 import com.netflix.conductor.core.events.queue.Message;
 import com.netflix.conductor.core.events.queue.ObservableQueue;
+import com.netflix.conductor.core.execution.ApplicationException;
 import com.netflix.conductor.metrics.Monitors;
 import com.netflix.conductor.service.ExecutionService;
 import com.netflix.conductor.service.MetadataService;
@@ -144,7 +145,8 @@ public class EventProcessor {
 
             int i = 0;
             for (EventHandler eventHandler : eventHandlerList) {
-                EventExecution eventExecution = new EventExecution(msg.getId() + "_" + i, msg.getId());
+                String id = msg.getId() + "_" + i;
+                EventExecution eventExecution = new EventExecution(id, msg.getId());
                 eventExecution.setCreated(System.currentTimeMillis());
                 eventExecution.setEvent(eventHandler.getEvent());
                 eventExecution.setName(eventHandler.getName());
@@ -189,7 +191,7 @@ public class EventProcessor {
             String description = String.format("Executing action: %s for event: %s with messageId: %s with payload: %s", action.getAction(), eventExecution.getId(), eventExecution.getMessageId(), payload);
             logger.debug(description);
 
-            Predicate<Throwable> filterException = throwableException -> !(throwableException instanceof UnsupportedOperationException);
+            Predicate<Throwable> filterException = throwableException -> !(throwableException instanceof UnsupportedOperationException || throwableException instanceof ApplicationException);
             Map<String, Object> output = new RetryUtil<Map<String, Object>>().retryOnException(() -> actionProcessor.execute(action, payload, eventExecution.getEvent(), eventExecution.getMessageId()),
                     filterException, null, RETRY_COUNT, description, methodName);
 
@@ -198,9 +200,9 @@ public class EventProcessor {
             }
             eventExecution.setStatus(Status.COMPLETED);
         } catch (RuntimeException e) {
-            logger.error("Error executing action: {} for event: {} with messageId: {}", action.getAction(), eventExecution.getEvent(), eventExecution.getMessageId(), e);
-            eventExecution.setStatus(Status.FAILED);
-            eventExecution.getOutput().put("exception", e.getMessage());
+            logger.error("Error executing action: {} for event: {} with messageId: {} after {} retries", action.getAction(), eventExecution.getEvent(), eventExecution.getMessageId(), RETRY_COUNT, e);
+            //eventExecution.setStatus(Status.FAILED);
+            //eventExecution.getOutput().put("exception", e.getMessage());
         }
         executionService.updateEventExecution(eventExecution);
     }

@@ -103,19 +103,19 @@ public class WorkflowExecutor {
         activeWorkerLastPollnSecs = config.getIntProperty("tasks.active.worker.lastpoll", 10);
     }
 
-    public String startWorkflow(String name, int version, String correlationId, Map<String, Object> input) throws Exception {
+    public String startWorkflow(String name, int version, String correlationId, Map<String, Object> input) {
         return startWorkflow(name, version, correlationId, input, null);
     }
 
-    public String startWorkflow(String name, int version, String correlationId, Map<String, Object> input, String event) throws Exception {
+    public String startWorkflow(String name, int version, String correlationId, Map<String, Object> input, String event) {
         return startWorkflow(name, version, input, correlationId, null, null, event);
     }
 
-    public String startWorkflow(String name, int version, String correlationId, Map<String, Object> input, String event, Map<String, String> taskToDomain) throws Exception {
+    public String startWorkflow(String name, int version, String correlationId, Map<String, Object> input, String event, Map<String, String> taskToDomain) {
         return startWorkflow(name, version, input, correlationId, null, null, event, taskToDomain);
     }
 
-    public String startWorkflow(String name, int version, Map<String, Object> input, String correlationId, String parentWorkflowId, String parentWorkflowTaskId, String event) throws Exception {
+    public String startWorkflow(String name, int version, Map<String, Object> input, String correlationId, String parentWorkflowId, String parentWorkflowTaskId, String event) {
         return startWorkflow(name, version, input, correlationId, parentWorkflowId, parentWorkflowTaskId, event, null);
     }
 
@@ -208,7 +208,7 @@ public class WorkflowExecutor {
         return workflowId;
     }
 
-    public String rerun(RerunWorkflowRequest request) throws Exception {
+    public String rerun(RerunWorkflowRequest request) {
         Preconditions.checkNotNull(request.getReRunFromWorkflowId(), "reRunFromWorkflowId is missing");
         if (!rerunWF(request.getReRunFromWorkflowId(), request.getReRunFromTaskId(), request.getTaskInput(),
                 request.getWorkflowInput(), request.getCorrelationId())) {

@@ -44,6 +44,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -348,25 +349,24 @@ public class ExecutionService {
 	public SearchResult<TaskSummary> searchTasks(String query, String freeText, int start, int size, List<String> sortOptions) {
 
 		SearchResult<String> result = indexer.searchTasks(query, freeText, start, size, sortOptions);
-		List<TaskSummary> workflows = result.getResults().stream().parallel().map(taskId -> {
-			try {
-
-				TaskSummary summary = new TaskSummary(executionDAO.getTask(taskId));
-				return summary;
-
-			} catch(Exception e) {
-				logger.error(e.getMessage(), e);
-				return null;
-			}
-		}).filter(summary -> summary != null).collect(Collectors.toList());
+		List<TaskSummary> workflows = result.getResults().stream()
+				.parallel()
+				.map(taskId -> {
+					try {
+						return new TaskSummary(executionDAO.getTask(taskId));
+					} catch(Exception e) {
+						logger.error(e.getMessage(), e);
+						return null;
+					}
+				})
+				.filter(Objects::nonNull)
+				.collect(Collectors.toList());
 		int missing = result.getResults().size() - workflows.size();
 		long totalHits = result.getTotalHits() - missing;
-		SearchResult<TaskSummary> sr = new SearchResult<>(totalHits, workflows);
-
-		return sr;
+		return new SearchResult<>(totalHits, workflows);
 	}
 
-	public List<Task> getPendingTasksForTaskType(String taskType) throws Exception {
+	public List<Task> getPendingTasksForTaskType(String taskType) {
 		return executionDAO.getPendingTasksForTaskType(taskType);
 	}
 
@@ -398,7 +398,7 @@ public class ExecutionService {
 		executionLog.setTaskId(taskId);
 		executionLog.setLog(log);
 		executionLog.setCreatedTime(System.currentTimeMillis());
-		executionDAO.addTaskExecLog(Arrays.asList(executionLog));
+		executionDAO.addTaskExecLog(Collections.singletonList(executionLog));
 	}
 
 	/**

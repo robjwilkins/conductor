@@ -97,34 +97,31 @@ public class Event extends WorkflowSystemTask {
 
 	@VisibleForTesting
 	ObservableQueue getQueue(Workflow workflow, Task task) {
-		
-		String sinkValueRaw = "" + task.getInputData().get("sink");
+		if (task.getInputData().get("sink") == null) {
+			task.setStatus(Status.FAILED);
+			task.setReasonForIncompletion("No sink specified in task");
+			return null;
+		}
+
+		String sinkValueRaw = (String)task.getInputData().get("sink");
 		Map<String, Object> input = new HashMap<>();
 		input.put("sink", sinkValueRaw);
 		Map<String, Object> replaced = parametersUtils.getTaskInputV2(input, workflow, task.getTaskId(), null);
 		String sinkValue = (String)replaced.get("sink");
-		
 		String queueName = sinkValue;
 
 		if(sinkValue.startsWith("conductor")) {
-			
 			if("conductor".equals(sinkValue)) {
-				
 				queueName = sinkValue + ":" + workflow.getWorkflowType() + ":" + task.getReferenceTaskName();
-				
 			} else if(sinkValue.startsWith("conductor:")) {
-				
 				queueName = sinkValue.replaceAll("conductor:", "");
 				queueName = "conductor:" + workflow.getWorkflowType() + ":" + queueName;
-				
 			} else {
 				task.setStatus(Status.FAILED);
 				task.setReasonForIncompletion("Invalid / Unsupported sink specified: " + sinkValue);
 				return null;
 			}
-			
 		}
-
 		task.getOutputData().put("event_produced", queueName);
 		
 		try {

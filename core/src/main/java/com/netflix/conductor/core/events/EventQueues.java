@@ -55,6 +55,11 @@ public class EventQueues {
 
 	public static ObservableQueue getQueue(String eventType) {
 		String event = parametersUtils.replace(eventType).toString();
+		if (event.indexOf(':') == -1) {
+			logger.error("Queue cannot be configured for illegal event: {}", event);
+			throw new IllegalArgumentException("Illegal event " + event);
+		}
+
 		String type = event.substring(0, event.indexOf(':'));
 		String queueURI = event.substring(event.indexOf(':') + 1);
 		EventQueueProvider provider = providers.get(type);
