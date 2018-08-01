@@ -20,6 +20,7 @@ package com.netflix.conductor.core.events;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.util.concurrent.Uninterruptibles;
+import com.netflix.conductor.common.metadata.events.EventExecution;
 import com.netflix.conductor.common.metadata.events.EventHandler;
 import com.netflix.conductor.common.metadata.events.EventHandler.Action;
 import com.netflix.conductor.common.metadata.events.EventHandler.Action.Type;
@@ -30,6 +31,7 @@ import com.netflix.conductor.common.metadata.workflow.WorkflowDef;
 import com.netflix.conductor.common.run.Workflow;
 import com.netflix.conductor.core.events.queue.Message;
 import com.netflix.conductor.core.events.queue.ObservableQueue;
+import com.netflix.conductor.core.execution.ApplicationException;
 import com.netflix.conductor.core.execution.TestConfiguration;
 import com.netflix.conductor.core.execution.WorkflowExecutor;
 import com.netflix.conductor.service.ExecutionService;
@@ -44,10 +46,13 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static junit.framework.Assert.assertNull;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyMap;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -58,7 +63,7 @@ import static org.mockito.Mockito.when;
 public class TestEventProcessor {
 
     @Test
-    public void testEventProcessor() throws Exception {
+    public void testEventProcessor() {
         String event = "sqs:arn:account090:sqstest1";
         String queueURI = "arn:account090:sqstest1";
 
@@ -150,5 +155,73 @@ public class TestEventProcessor {
         Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         assertTrue(started.get());
         assertTrue(completed.get());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testExecuteInvalidAction() {
+        ExecutionService executionService = mock(ExecutionService.class);
+        MetadataService metadataService = mock(MetadataService.class);
+        ActionProcessor actionProcessor = mock(ActionProcessor.class);
+
+        String errorMessage = "error";
+        doAnswer((Answer<String>) invocation -> {
+            throw new UnsupportedOperationException(errorMessage);
+        }).when(actionProcessor).execute(any(), any(), any(), any());
+
+        EventProcessor eventProcessor = new EventProcessor(executionService, metadataService, actionProcessor, new TestConfiguration());
+        EventExecution eventExecution = new EventExecution("id", "messageId");
+        eventExecution.setEvent("event");
+        Action action = new Action();
+        boolean success = eventProcessor.execute(eventExecution, action, "payload");
+
+        assertTrue(success);
+        assertEquals(EventExecution.Status.FAILED, eventExecution.getStatus());
+        assertNotNull(eventExecution.getOutput().get("exception"));
+    }
+
+    @Test
+    public void testExecuteNonRetriableApplicationException() {
+        ExecutionService executionService = mock(ExecutionService.class);
+        MetadataService metadataService = mock(MetadataService.class);
+        ActionProcessor actionProcessor = mock(ActionProcessor.class);
+
+        doAnswer((Answer<String>) invocation -> {
+            throw new ApplicationException(ApplicationException.Code.INVALID_INPUT, "some non-retriable error");
+        }).when(actionProcessor).execute(any(), any(), any(), any());
+
+
+        EventProcessor eventProcessor = new EventProcessor(executionService, metadataService, actionProcessor, new TestConfiguration());
+        EventExecution eventExecution = new EventExecution("id", "messageId");
+        eventExecution.setEvent("event");
+        Action action = new Action();
+        action.setAction(Type.start_workflow);
+        boolean success = eventProcessor.execute(eventExecution, action, "payload");
+
+        assertTrue(success);
+        assertEquals(EventExecution.Status.FAILED, eventExecution.getStatus());
+        assertNotNull(eventExecution.getOutput().get("exception"));
+    }
+
+    @Test
+    public void testExecuteRetriableApplicationException() {
+        ExecutionService executionService = mock(ExecutionService.class);
+        MetadataService metadataService = mock(MetadataService.class);
+        ActionProcessor actionProcessor = mock(ActionProcessor.class);
+
+        doAnswer((Answer<String>) invocation -> {
+            throw new ApplicationException(ApplicationException.Code.BACKEND_ERROR, "some retriable error");
+        }).when(actionProcessor).execute(any(), any(), any(), any());
+
+
+        EventProcessor eventProcessor = new EventProcessor(executionService, metadataService, actionProcessor, new TestConfiguration());
+        EventExecution eventExecution = new EventExecution("id", "messageId");
+        eventExecution.setEvent("event");
+        Action action = new Action();
+        action.setAction(Type.start_workflow);
+        boolean success = eventProcessor.execute(eventExecution, action, "payload");
+
+        assertFalse(success);
+        assertNull(eventExecution.getOutput().get("exception"));
     }
 }

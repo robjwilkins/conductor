@@ -609,6 +609,9 @@ public class WorkflowExecutor {
             logger.debug(tw.getMessage(), tw);
             terminate(def, workflow, tw);
             return true;
+        } catch (RuntimeException e) {
+            logger.error("Error deciding workflow: {}", workflowId, e);
+            throw e;
         }
         return false;
     }

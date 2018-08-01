@@ -109,9 +109,10 @@ public class ActionProcessor {
 
         try {
             executor.updateTask(new TaskResult(task));
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             logger.error("Error updating task: {} in workflow: {} in action: {} for event: {} for message: {}", taskDetails.getTaskRefName(), taskDetails.getWorkflowId(), action.getAction(), event, messageId, e);
             replaced.put("error", e.getMessage());
+            throw e;
         }
         return replaced;
     }
@@ -128,9 +129,10 @@ public class ActionProcessor {
 
             String id = executor.startWorkflow(def.getName(), def.getVersion(), params.getCorrelationId(), workflowInput, event);
             output.put("workflowId", id);
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             logger.error("Error starting workflow: {}, version: {}, for event: {} for message: {}", params.getName(), params.getVersion(), event, messageId, e);
             output.put("error", e.getMessage());
+            throw e;
         }
         return output;
     }

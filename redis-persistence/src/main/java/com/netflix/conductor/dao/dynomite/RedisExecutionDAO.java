@@ -619,7 +619,7 @@ public class RedisExecutionDAO extends BaseDynoDAO implements ExecutionDAO {
 			return false;
 
 		} catch (Exception e) {
-			throw new ApplicationException(Code.BACKEND_ERROR, e.getMessage(), e);
+			throw new ApplicationException(Code.BACKEND_ERROR, "Unable to add event execution for " + eventExecution.getId(), e);
 		}
 	}
 
@@ -636,7 +636,19 @@ public class RedisExecutionDAO extends BaseDynoDAO implements ExecutionDAO {
 			indexDAO.addEventExecution(eventExecution);
 
 		} catch (Exception e) {
-			throw new ApplicationException(Code.BACKEND_ERROR, e.getMessage(), e);
+			throw new ApplicationException(Code.BACKEND_ERROR, "Unable to update event execution for " + eventExecution.getId(), e);
+		}
+	}
+
+	@Override
+	public void removeEventExecution(EventExecution eventExecution) {
+		try {
+			String key = nsKey(EVENT_EXECUTION, eventExecution.getName(), eventExecution.getEvent(), eventExecution.getMessageId());
+			logger.info("removing event execution {}", key);
+			dynoClient.hdel(key, eventExecution.getId());
+			recordRedisDaoEventRequests("removeEventExecution", eventExecution.getEvent());
+		} catch	(Exception e) {
+			throw new ApplicationException(Code.BACKEND_ERROR, "Unable to remove event execution for " + eventExecution.getId(), e);
 		}
 	}
 
@@ -660,7 +672,7 @@ public class RedisExecutionDAO extends BaseDynoDAO implements ExecutionDAO {
 			return executions;
 
 		} catch (Exception e) {
-			throw new ApplicationException(Code.BACKEND_ERROR, e.getMessage(), e);
+			throw new ApplicationException(Code.BACKEND_ERROR, "Unable to get event executions for " + eventHandlerName, e);
 		}
 	}
 

@@ -43,7 +43,6 @@ import org.slf4j.LoggerFactory;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -370,13 +369,16 @@ public class ExecutionService {
 		return executionDAO.getPendingTasksForTaskType(taskType);
 	}
 
-	public boolean addEventExecution(EventExecution ee) {
-		return executionDAO.addEventExecution(ee);
+	public boolean addEventExecution(EventExecution eventExecution) {
+		return executionDAO.addEventExecution(eventExecution);
 	}
 
+	public void removeEventExecution(EventExecution eventExecution) {
+		executionDAO.removeEventExecution(eventExecution);
+	}
 
-	public void updateEventExecution(EventExecution ee) {
-		executionDAO.updateEventExecution(ee);
+	public void updateEventExecution(EventExecution eventExecution) {
+		executionDAO.updateEventExecution(eventExecution);
 	}
 
 	/**

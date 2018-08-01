@@ -18,6 +18,7 @@
  */
 package com.netflix.conductor.core.events;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.netflix.conductor.common.metadata.events.EventExecution;
 import com.netflix.conductor.common.metadata.events.EventExecution.Status;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
@@ -164,12 +166,20 @@ public class EventProcessor {
                     }
                 }
 
+
+
                 customForkJoinPool.submit(() -> eventHandler.getActions().parallelStream()
                         .forEach(action -> {
                             eventExecution.setAction(action.getAction());
                             eventExecution.setStatus(Status.IN_PROGRESS);
                             if (executionService.addEventExecution(eventExecution)) {
-                                execute(eventExecution, action, payload);
+
+                                if (execute(eventExecution, action, payload)) {
+                                    executionService.updateEventExecution(eventExecution);
+
+                                } else {
+                                    executionService.removeEventExecution(eventExecution);
+                                }
                             } else {
                                 logger.warn("Duplicate delivery/execution of message: {}", msg.getId());
                             }
@@ -185,25 +195,36 @@ public class EventProcessor {
     }
 
     @SuppressWarnings("Guava")
-    private void execute(EventExecution eventExecution, Action action, String payload) {
+    @VisibleForTesting
+    boolean execute(EventExecution eventExecution, Action action, String payload) {
         try {
             String methodName = "executeEventAction";
             String description = String.format("Executing action: %s for event: %s with messageId: %s with payload: %s", action.getAction(), eventExecution.getId(), eventExecution.getMessageId(), payload);
             logger.debug(description);
 
-            Predicate<Throwable> filterException = throwableException -> !(throwableException instanceof UnsupportedOperationException || throwableException instanceof ApplicationException);
+            Predicate<Throwable> filterException = throwableException -> {
+                if (throwableException != null) {
+                    return !(throwableException.getCause() instanceof UnsupportedOperationException);
+                }
+                return true;
+            };
             Map<String, Object> output = new RetryUtil<Map<String, Object>>().retryOnException(() -> actionProcessor.execute(action, payload, eventExecution.getEvent(), eventExecution.getMessageId()),
                     filterException, null, RETRY_COUNT, description, methodName);
-
             if (output != null) {
                 eventExecution.getOutput().putAll(output);
             }
             eventExecution.setStatus(Status.COMPLETED);
         } catch (RuntimeException e) {
-            logger.error("Error executing action: {} for event: {} with messageId: {} after {} retries", action.getAction(), eventExecution.getEvent(), eventExecution.getMessageId(), RETRY_COUNT, e);
-            //eventExecution.setStatus(Status.FAILED);
-            //eventExecution.getOutput().put("exception", e.getMessage());
+            logger.error("Error executing action: {} for event: {} with messageId: {}", action.getAction(), eventExecution.getEvent(), eventExecution.getMessageId(), e);
+            if (e.getCause() instanceof UnsupportedOperationException || (e.getCause() instanceof ApplicationException && ((ApplicationException) e.getCause()).getCode() != ApplicationException.Code.BACKEND_ERROR)) {
+                // not a transient error, fail the event execution
+                eventExecution.setStatus(Status.FAILED);
+                eventExecution.getOutput().put("exception", e.getMessage());
+            } else {
+                // transient error, can be retried
+                return false;
+            }
         }
-        executionService.updateEventExecution(eventExecution);
+        return true;
     }
 }
