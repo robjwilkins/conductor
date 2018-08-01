@@ -111,7 +111,7 @@ public class EventProcessor {
 
             List<ObservableQueue> createdQueues = new LinkedList<>();
             events.forEach(event -> eventToQueueMap.computeIfAbsent(event, s -> {
-                        ObservableQueue q = EventQueues.getQueue(event, false);
+                        ObservableQueue q = EventQueues.getQueue(event);
                         createdQueues.add(q);
                         return q;
                     }

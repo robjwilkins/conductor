@@ -222,6 +222,6 @@ public class MetadataService {
         Preconditions.checkNotNull(eh.getEvent(), "Missing event location");
         Preconditions.checkNotNull(eh.getActions().isEmpty(), "No actions specified.  Please specify at-least one action");
         String event = eh.getEvent();
-        EventQueues.getQueue(event, true);
+        EventQueues.getQueue(event);
     }
 }
